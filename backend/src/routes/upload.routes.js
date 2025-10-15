@@ -3,16 +3,15 @@ const express = require('express');
 const router = express.Router();
 const uploadController = require('../controllers/uploadController');
 
-// File upload endpoint
+// Define routes with explicit POST method
 router.post('/upload', uploadController.upload, uploadController.uploadFile);
-
-// Status check endpoint
 router.get('/status/:jobId', uploadController.getJobStatus);
-
-// Results endpoint  
 router.get('/results/:jobId', uploadController.getResults);
-
-// Export endpoint
 router.get('/export/:jobId', uploadController.exportResults);
+
+// Debug route to verify routes are loaded
+router.get('/test', (req, res) => {
+  res.json({ message: 'Phase1 routes working' });
+});
 
 module.exports = router;
