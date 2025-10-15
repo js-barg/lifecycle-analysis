@@ -1662,7 +1662,7 @@ const LifecyclePage = () => {
       <footer className="mt-4" style={{ backgroundColor: '#002D62' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row justify-between items-center text-white text-xs">
-            <span className="mb-2 sm:mb-0">© Positive Impact Technology™</span>
+            <span className="mb-2 sm:mb-0">© Positive Impact Technology™  vPhase 1</span>
             <nav className="flex items-center space-x-2">
               <a href="/privacy" className="hover:text-gray-300 transition-colors text-sm">Privacy</a>
               <span className="text-gray-400">|</span>
