@@ -1,5 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, TrendingUp, Shield, Lightbulb, Menu, X, Download } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, TrendingUp, Shield, Lightbulb, Menu, X, Download, Filter } from 'lucide-react';
+import Phase2Results from './Phase2Results';
+import Phase3Results from './Phase3Results';
+import Phase1FilterPanel from './Phase1filterpanel';
+import "../styles/phase3.css";
+import LifecycleReportView from './LifecycleReportView';
 
 /**
  * DESIGN SYSTEM GUIDE
@@ -39,6 +44,7 @@ import { Upload, FileText, AlertCircle, CheckCircle, TrendingUp, Shield, Lightbu
  */
 
 const LifecyclePage = () => {
+  const [selectedFilterId, setSelectedFilterId] = useState(null);
   const [phase1Results, setPhase1Results] = useState(null);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
   // State management for interactive elements
@@ -59,13 +65,32 @@ const LifecyclePage = () => {
   const [analysisError, setAnalysisError] = useState(null);
   const [analysisResults, setAnalysisResults] = useState(null);
   const [dataRows, setDataRows] = useState(null);
+  const [phase2JobId, setPhase2JobId] = useState(null);
+  const [phase3JobId, setPhase3JobId] = useState(null);
+  const [phase3ResearchComplete, setPhase3ResearchComplete] = useState(false);
 
   const phases = [
     { id: 1, name: 'Phase 1', icon: FileText },
     { id: 2, name: 'Phase 2', icon: TrendingUp },
     { id: 3, name: 'Phase 3', icon: CheckCircle },
-    { id: 4, name: 'Export', icon: Download }
+    { id: 4, name: 'Lifecycle Report', icon: Download }
   ];
+
+    // Add this handler function for Phase 2 completion (add it with other handlers)
+  const handlePhase2Complete = (phase2JobId) => {
+    console.log('Phase 2 complete, job ID:', phase2JobId);
+    
+    // Mark Phase 2 as complete
+    setCompletedPhases(prev => {
+      if (!prev.includes(2)) {
+        return [...prev, 2];
+      }
+      return prev;
+    });
+    
+    // Store the Phase 2 job ID for Phase 3
+    setPhase2JobId(phase2JobId);
+  };
 
   // File handling functions
   const handleDragOver = (e) => {
@@ -95,6 +120,11 @@ const LifecyclePage = () => {
     }
   };
 
+  const handleFilterChange = (filterId) => {
+    setSelectedFilterId(filterId);
+    console.log('Phase 1 filter selected:', filterId);
+  };
+
   // Backend API integration for Phase 1
   const runPhase1Analysis = async () => {
     setIsAnalyzing(true);
@@ -105,6 +135,11 @@ const LifecyclePage = () => {
       const formDataToSend = new FormData();
       formDataToSend.append('file', uploadedFile);
       formDataToSend.append('customerName', formData.customerName || 'Unknown Customer');
+      
+      // Add the selected filter ID if one is selected
+      if (selectedFilterId && selectedFilterId !== 'no-filter') {
+        formDataToSend.append('filterSetId', selectedFilterId);
+      }
 
       const response = await fetch('/api/phase1/upload', {
         method: 'POST',
@@ -141,7 +176,6 @@ const LifecyclePage = () => {
       setAnalysisStatus('Processing file...');
       
       // Poll for status
-      // Poll for status
       const checkStatus = setInterval(async () => {
         try {
           const statusRes = await fetch(`/api/phase1/status/${jobId}`);
@@ -172,7 +206,7 @@ const LifecyclePage = () => {
             setIsAnalyzing(false);
             setAnalysisError(status.error || 'Analysis failed');
           }
-        } catch (error) {  // THIS CATCH BLOCK MIGHT BE MISSING
+        } catch (error) {
           clearInterval(checkStatus);
           setIsAnalyzing(false);
           setAnalysisError('Failed to check status: ' + error.message);
@@ -183,14 +217,14 @@ const LifecyclePage = () => {
         clearInterval(checkStatus);
         if (isAnalyzing) {
           setIsAnalyzing(false);
-          setAnalysisError('Analysis timed out. Please try again.');
+          setAnalysisError('Analysis timeout - please try again');
         }
       }, 60000);
       
     } catch (error) {
-      console.error('Phase 1 error:', error);
-      setAnalysisError('Phase 1 analysis failed: ' + error.message);
+      console.error('Phase 1 analysis error:', error);
       setIsAnalyzing(false);
+      setAnalysisError(error.message);
     }
   };
 
@@ -316,72 +350,116 @@ const LifecyclePage = () => {
   };
 
   const handleExport = async () => {
-    if (!analysisJobId) return;
+    console.log('🔍 Lifecycle Report Export triggered');
+    console.log('🔍 phase3JobId:', phase3JobId);
+    console.log('🔍 phase3ResearchComplete:', phase3ResearchComplete);
     
+    if (!phase3JobId || !phase3ResearchComplete) {
+      console.error('❌ Cannot export:', { phase3JobId, phase3ResearchComplete });
+      alert(`Cannot generate report: ${!phase3JobId ? 'No Phase 3 Job ID' : 'Research not complete'}`);
+      return;
+    }
     try {
-      const response = await fetch(`/api/phase1/export/${analysisJobId}`, {
-        method: 'GET',
+      // Call the lifecycle report endpoint
+      const response = await fetch(`/api/phase3/reports/export/lifecycle-report-excel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId: phase3JobId,
+          customerName: formData.customerName || 'Unknown Customer',
+          eolYearBasis: 'lastDayOfSupport'
+        })
       });
       
       if (!response.ok) {
-        throw new Error('Export failed');
+        throw new Error('Lifecycle report generation failed');
       }
       
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `analysis_${formData.customerName || 'export'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.download = `lifecycle_report_${formData.customerName || 'export'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
+      console.error('Lifecycle report generation failed:', error);
+      alert('Lifecycle report generation failed. Please try again.');
     }
   };
 
   const handlePhaseClick = async (phaseId) => {
+    // Lifecycle Report handling
     if (phaseId === 4) {
-      if (completedPhases.length > 0) {
-        await handleExport();
+      if (!phase3ResearchComplete) {
+        alert('Please complete Phase 3 research first');
+        return;
       }
+      
+      if (!phase3JobId) {
+        alert('Phase 3 Job ID not found. Please reinitialize Phase 3.');
+        return;
+      }
+      
+      // Set Phase 4 as active to display the report view
+      setActivePhase(4);
       return;
     }
 
+    // Phase 1 handling
     if (phaseId === 1) {
       if (!uploadedFile) {
         alert('Please upload a file first');
         return;
       }
-    } else if (phaseId === 2) {
+      
+      // If Phase 1 is already completed, just show the results
+      if (completedPhases.includes(1)) {
+        setActivePhase(1);
+        return;
+      }
+      
+      // Run Phase 1 analysis
+      await runPhase1Analysis();
+    } 
+    // Phase 2 handling
+    else if (phaseId === 2) {
       if (!completedPhases.includes(1)) {
         alert('Please complete Phase 1 first');
         return;
       }
-    } else if (phaseId === 3) {
-      if (!completedPhases.includes(1) && !completedPhases.includes(2)) {
-        alert('Please complete Phase 1 or Phase 2 first');
-        return;
+      
+      // Set Phase 2 as active
+      setActivePhase(2);
+      
+      // Mark Phase 1 job for Phase 2 to use
+      if (!completedPhases.includes(2)) {
+        setPhase2JobId(analysisJobId);
       }
-    }
+    } 
+    // Phase 3 handling  
+    else if (phaseId === 3) {
+  if (!completedPhases.includes(1) && !completedPhases.includes(2)) {
+    alert('Please complete Phase 1 or Phase 2 first');
+    return;
+  }
+  
+  // Phase 3 requires Phase 2 to mark data as ready
+  if (!completedPhases.includes(2)) {
+    alert('Please complete Phase 2 and click "Ready for Phase 3" first');
+    return;
+  }
+  
+  setActivePhase(3);
+  setPhase3ResearchComplete(false); // Reset research completion status
+  
+  }
 
-    if (!completedPhases.includes(phaseId)) {
-      if (phaseId === 1) {
-        await runPhase1Analysis();
-      } else {
-        setIsAnalyzing(true);
-        setTimeout(() => {
-          setCompletedPhases(prev => [...prev, phaseId]);
-          setActivePhase(phaseId);
-          setIsAnalyzing(false);
-        }, 500);
-      }
-    } else {
-      setActivePhase(phaseId);
-    }
-  };
+ };  
 
   const handleReset = () => {
     setActivePhase(null);
@@ -394,13 +472,15 @@ const LifecyclePage = () => {
     setAnalysisError(null);
     setAnalysisResults(null);
     setDataRows(null);
+    setPhase1Results(null);
+    setPhase2JobId(null);
+    setPhase3JobId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
   // Phase1ResultsTable Component Definition
-  // Phase1ResultsTable Component Definition with Export
   const Phase1ResultsTable = ({ results, isLoadingResults }) => {
     if (!results) return null;
 
@@ -526,7 +606,6 @@ const LifecyclePage = () => {
     };
     
     // Category Breakdown Component
-    // Category Breakdown Component
     const CategoryBreakdown = ({ data, analytics }) => {
       const categoryData = React.useMemo(() => {
         if (analytics?.categories) {
@@ -604,7 +683,6 @@ const LifecyclePage = () => {
       );
     };
 
-    // Manufacturer Breakdown Component
     // Manufacturer Breakdown Component
     const ManufacturerBreakdown = ({ data, analytics }) => {
       const manufacturerData = React.useMemo(() => {
@@ -908,14 +986,21 @@ const LifecyclePage = () => {
     return (
       <div className="space-y-6">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">  {/* <- THIS WAS MISSING */}
           <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
             <div className="text-xs font-bold uppercase mb-1" style={{ color: '#002D62' }}>
               TOTAL ITEMS
             </div>
             <div className="text-2xl font-bold" style={{ color: '#008080' }}>
-              {summary.total_items || 0}
+              {summary.filtered_items || summary.total_items || 0}
             </div>
+            {summary.original_items && (
+              <div className="text-xs text-gray-500 mt-1">
+                {summary.original_items} original
+                <br />
+                {summary.items_excluded} excluded
+              </div>
+            )}
           </div>
           
           <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
@@ -1243,7 +1328,7 @@ const LifecyclePage = () => {
     );
   }; // Closes Phase1ResultsTable component
 
-  // Main component return - UNCHANGED
+  // Main component return
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" style={{ backgroundColor: '#F8F8F8' }}>
       {/* Header - Sticky Navigation */}
@@ -1418,6 +1503,12 @@ const LifecyclePage = () => {
                     required
                     aria-required="true"
                   />
+                  {/* Phase 1 Exclusion Filters */}
+                  <Phase1FilterPanel 
+                    onFilterChange={handleFilterChange}
+                    currentFilterId={selectedFilterId}
+                    uploadedFile={uploadedFile}
+                  />
                   {uploadedFile && completedPhases.length === 0 && !isAnalyzing && (
                     <p className="text-xs text-teal-600 mt-1" role="status">
                       Ready! Click Phase 1 below to start analysis
@@ -1450,19 +1541,19 @@ const LifecyclePage = () => {
                     <div>
                       <p className="text-xs text-gray-500">File Status</p>
                       <p className="text-sm font-semibold" style={{ color: uploadedFile ? '#008080' : '#999' }}>
-                        {uploadedFile ? '✓ Loaded' : '— Empty'}
+                        {uploadedFile ? '✓ Loaded' : 'Empty'}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Data Rows</p>
                       <p className="text-sm font-semibold" style={{ color: uploadedFile ? '#002D62' : '#999' }}>
-                        {dataRows || (uploadedFile ? '—' : '—')}
+                        {dataRows || (uploadedFile ? '✓' : '✓')}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Phases Done</p>
                       <p className="text-sm font-semibold" style={{ color: completedPhases.length > 0 ? '#002D62' : '#999' }}>
-                        {completedPhases.length > 0 ? `${completedPhases.length}/3` : '—'}
+                        {completedPhases.length > 0 ? `${completedPhases.length}/3` : '✓'}
                       </p>
                     </div>
                   </div>
@@ -1493,7 +1584,7 @@ const LifecyclePage = () => {
                       onClick={() => handlePhaseClick(phase.id)}
                       className={`flex items-center px-4 py-2 rounded-full transition-all ${
                         isExport 
-                          ? completedPhases.length === 3
+                          ? phase3ResearchComplete
                             ? 'text-white hover:opacity-90 shadow-md' 
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
                           : isActive 
@@ -1506,22 +1597,22 @@ const LifecyclePage = () => {
                       }`}
                       style={{ 
                         backgroundColor: isExport 
-                          ? completedPhases.length === 3 ? '#002D62' : undefined 
+                          ? phase3ResearchComplete ? '#002D62' : undefined 
                           : isActive ? '#008080' : undefined,
-                        color: (isExport && completedPhases.length === 3) || isActive ? 'white' : undefined
+                        color: (isExport && phase3ResearchComplete) || isActive ? 'white' : undefined
                       }}
-                      disabled={isAnalyzing || (isExport ? completedPhases.length !== 3 : (!uploadedFile || !formData.customerName || (phase.id > 1 && !completedPhases.includes(phase.id - 1))))}
+                      disabled={isAnalyzing || (isExport ? !phase3ResearchComplete : (!uploadedFile || !formData.customerName || (phase.id > 1 && !completedPhases.includes(phase.id - 1))))}
                       aria-pressed={isActive && !isExport ? 'true' : undefined}
                       aria-label={`${phase.name} ${
                         isActive && !isExport ? '(active)' : 
                         isCompleted ? '(completed)' : 
                         canRun && !isExport ? '(ready to run)' : 
-                        isExport && completedPhases.length === 3 ? '(ready)' : 
+                        isExport && phase3ResearchComplete ? '(ready)' : 
                         ''
                       }`}
                       title={
-                        isExport && completedPhases.length !== 3
-                          ? 'Complete all phases before exporting'
+                        isExport && !phase3ResearchComplete
+                          ? 'Complete Phase 3 AI Research before generating lifecycle report'
                           : !canRun && !isExport 
                             ? phase.id === 1 
                               ? 'Upload file and enter customer name first' 
@@ -1539,9 +1630,41 @@ const LifecyclePage = () => {
                 })}
               </div>
 
-              {activePhase && completedPhases.includes(activePhase) ? (
+              {activePhase ? (
                 <>
-                  {analysisResults && (
+                  {/* Analysis Results Cards - Only show for Phase 1 */}
+                  {/* Filter Statistics Display - Add this BEFORE line 1593 */}
+                  {analysisResults?.summary?.appliedFilter && activePhase === 1 && (
+                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-start space-x-3">
+                        <Filter className="h-5 w-5 text-blue-500 mt-0.5" />
+                        <div>
+                          <h4 className="text-sm font-bold text-[#002D62] uppercase">
+                            FILTER APPLIED: {analysisResults.summary.appliedFilter.name}
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {analysisResults.summary.appliedFilter.description}
+                          </p>
+                          {analysisResults?.summary?.filterStats && (
+                            <div className="mt-2 grid grid-cols-3 gap-4 text-xs">
+                              <div>
+                                <span className="font-semibold">Original Items:</span> {analysisResults.summary.filterStats.originalCount}
+                              </div>
+                              <div>
+                                <span className="font-semibold">After Filter:</span> {analysisResults.summary.filterStats.filteredCount}
+                              </div>
+                              <div>
+                                <span className="font-semibold">Excluded:</span> {analysisResults.summary.filterStats.excludedCount} ({analysisResults.summary.filterStats.excludedPercentage}%)
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Analysis Results Cards - Only show for Phase 1 (existing code) */}
+                  {analysisResults && activePhase === 1 && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {analysisResults.opportunities && (
                         <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -1602,7 +1725,9 @@ const LifecyclePage = () => {
                     </div>
                   )}
 
+                  {/* Phase-specific content */}
                   {activePhase === 1 ? (
+                    // Phase 1 Results
                     <div className="border rounded-lg p-6" style={{ backgroundColor: '#F8F8F8' }}>
                       <h3 className="text-lg font-bold uppercase mb-4" style={{ color: '#002D62' }}>
                         PHASE 1 ANALYTICS VISUALIZATION
@@ -1623,24 +1748,60 @@ const LifecyclePage = () => {
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <div 
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-8 bg-gray-50"
-                      aria-label="Visualization area - charts will appear here after analysis"
-                    >
-                      <div className="text-center">
-                        <TrendingUp size={48} className="mx-auto mb-4 text-gray-400" />
-                        <p className="text-gray-600">
-                          {activePhase === 4 ? 'Export Ready' : `Phase ${activePhase} Analytics Visualization`}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
-                          {activePhase === 4 ? 'Click Export to download results' : 'Interactive charts will render here'}
-                        </p>
-                      </div>
+                  ) : activePhase === 2 ? (
+                    // Phase 2 Results
+                    <div className="border rounded-lg p-6" style={{ backgroundColor: '#F8F8F8' }}>
+                      <Phase2Results 
+                        phase1JobId={analysisJobId}
+                        isActive={activePhase === 2}
+                        onComplete={(phase2JobId) => {  // Receive phase2JobId as parameter
+                          // Mark Phase 2 as complete and enable Phase 3
+                          setCompletedPhases(prev => {
+                            if (!prev.includes(2)) {
+                              return [...prev, 2];
+                            }
+                            return prev;
+                          });
+                          // Keep Phase 2 job ID for Phase 3 (not analysisJobId!)
+                          setPhase2JobId(phase2JobId);  // Use the passed phase2JobId
+                        }}
+                      />
                     </div>
-                  )}
+                  ) : activePhase === 3 ? (
+                    // Phase 3 - AI Lifecycle Research
+                    <Phase3Results 
+                      phase2JobId={phase2JobId}
+                      phase3JobId={phase3JobId}
+                      customerName={formData.customerName} 
+                      isActive={activePhase === 3}
+                      onComplete={() => {
+                        setCompletedPhases(prev => {
+                          if (!prev.includes(3)) {
+                            return [...prev, 3];
+                          }
+                          return prev;
+                        });
+                      }}
+                      onPhase3Initialize={(jobId) => {
+                        console.log('📍 Phase 3 initialized with jobId:', jobId);
+                        setPhase3JobId(jobId);
+                      }}
+                      onResearchComplete={() => {
+                        console.log('✅ Research complete callback triggered');
+                        setPhase3ResearchComplete(true);
+                      }}
+                    />
+                  ) : activePhase === 4 ? (
+                    // Lifecycle Report Display
+                    <LifecycleReportView 
+                      phase3JobId={phase3JobId}
+                      customerName={formData.customerName}
+                      onExport={handleExport}
+                    />
+                  ) : null}
                 </>
               ) : (
+                // No analysis results yet
                 <div className="flex items-center justify-center h-48 border-2 border-dashed border-gray-200 rounded-lg">
                   <div className="text-center">
                     <FileText size={48} className="mx-auto mb-4 text-gray-400" />

@@ -1,0 +1,182 @@
+{
+  "fsd_f56058cf-3699-4fab-95d3-05b8b2818163": {
+    "filters": [
+      {
+        "id": "d8a51052-bada-4de3-b03f-3d2ce11392a7",
+        "name": "Common v1",
+        "description": "",
+        "filters": {
+          "product_id": "DN2",
+          "type": {
+            "include": [],
+            "exclude": []
+          },
+          "category": {
+            "include": [],
+            "exclude": []
+          },
+          "mfg": {
+            "include": [],
+            "exclude": []
+          },
+          "description": "",
+          "risk_level": {
+            "include": [],
+            "exclude": []
+          },
+          "support_status": {
+            "include": [],
+            "exclude": []
+          }
+        },
+        "settings": {
+          "is_default": false,
+          "is_shared": true
+        },
+        "created_date": "2025-10-17T06:14:03.675Z",
+        "created_by": "user",
+        "last_used": null,
+        "usage_count": 0
+      }
+    ],
+    "defaultFilterId": null,
+    "customerName": "fsd",
+    "lastUpdated": "2025-10-17T06:14:03.675Z"
+  },
+  "C_272c4adf-b5a4-4ec6-b732-3a3abfa4b731": {
+    "filters": [
+      {
+        "id": "352e6a39-da5a-407d-b624-d48ee1365c05",
+        "name": "Filter 1",
+        "description": "",
+        "filters": {
+          "product_id": "dn2",
+          "type": {
+            "include": [],
+            "exclude": []
+          },
+          "category": {
+            "include": [],
+            "exclude": []
+          },
+          "mfg": {
+            "include": [],
+            "exclude": []
+          },
+          "description": "",
+          "risk_level": {
+            "include": [],
+            "exclude": []
+          },
+          "support_status": {
+            "include": [],
+            "exclude": []
+          }
+        },
+        "settings": {
+          "is_default": false,
+          "is_shared": true
+        },
+        "created_date": "2025-10-17T16:15:37.363Z",
+        "created_by": "user",
+        "last_used": null,
+        "usage_count": 0
+      }
+    ],
+    "defaultFilterId": null,
+    "customerName": "C",
+    "lastUpdated": "2025-10-17T16:15:37.363Z"
+  },
+  "C_9e34e95e-9465-4524-8470-fbb886f6eac7": {
+    "filters": [
+      {
+        "id": "b19bb2ed-37ba-45a0-8718-9e180e9d1c61",
+        "name": "Filter1",
+        "description": "",
+        "filters": {
+          "product_id": "",
+          "type": {
+            "include": [
+              "CABLE"
+            ],
+            "exclude": []
+          },
+          "category": {
+            "include": [],
+            "exclude": []
+          },
+          "mfg": {
+            "include": [],
+            "exclude": []
+          },
+          "description": "",
+          "risk_level": {
+            "include": [],
+            "exclude": []
+          },
+          "support_status": {
+            "include": [],
+            "exclude": []
+          }
+        },
+        "settings": {
+          "is_default": false,
+          "is_shared": true
+        },
+        "created_date": "2025-10-17T16:34:26.505Z",
+        "created_by": "user",
+        "last_used": null,
+        "usage_count": 0
+      }
+    ],
+    "defaultFilterId": null,
+    "customerName": "C",
+    "lastUpdated": "2025-10-17T16:34:26.505Z"
+  },
+  "c_28dfce02-68b6-4a9c-b5b4-9d115321b5b5": {
+    "filters": [
+      {
+        "id": "ebcc3bca-0ab9-4afc-a44a-a2a3d95c849c",
+        "name": "Filter 1",
+        "description": "",
+        "filters": {
+          "product_id": "",
+          "type": {
+            "include": [
+              "CABLE"
+            ],
+            "exclude": []
+          },
+          "category": {
+            "include": [],
+            "exclude": []
+          },
+          "mfg": {
+            "include": [],
+            "exclude": []
+          },
+          "description": "",
+          "risk_level": {
+            "include": [],
+            "exclude": []
+          },
+          "support_status": {
+            "include": [],
+            "exclude": []
+          }
+        },
+        "settings": {
+          "is_default": false,
+          "is_shared": true
+        },
+        "created_date": "2025-10-17T16:40:33.245Z",
+        "created_by": "user",
+        "last_used": null,
+        "usage_count": 0
+      }
+    ],
+    "defaultFilterId": null,
+    "customerName": "c",
+    "lastUpdated": "2025-10-17T16:40:33.245Z"
+  }
+}

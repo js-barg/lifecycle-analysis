@@ -4,6 +4,9 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const Papa = require('papaparse');
 const ExcelJS = require('exceljs');
+const jobStorage = require('../utils/jobStorage');
+const phase1FilterService = require('../services/phase1FilterService');
+const fs = require('fs');
 
 // Import columnMapper - if this doesn't exist, the normalization functions are included below
 let processData;
@@ -12,7 +15,6 @@ try {
   processData = columnMapper.processData;
 } catch (error) {
   console.log('Column mapper not found, using built-in processing');
-  // Built-in normalization if columnMapper doesn't exist
   // Built-in normalization if columnMapper doesn't exist
   processData = (data) => {
     return data.map((row, index) => {
@@ -85,9 +87,8 @@ try {
 
       return normalizedItem;
     });
-  };;     // Closes the processData function
-}        // Closes the catch block
-
+  };
+}
 
 // Store uploads in memory for processing
 const storage = multer.memoryStorage();
@@ -104,9 +105,6 @@ const upload = multer({
     }
   }
 });
-
-// Store job data in memory (replace with database in production)
-const jobStorage = {};
 
 // Parse Excel file
 async function parseExcel(buffer) {
@@ -158,13 +156,6 @@ async function parseExcel(buffer) {
 }
 
 // Upload handler
-// LOCATION: backend/src/controllers/uploadController.js
-// FIND the uploadFile function (starts at line 120)
-// REPLACE the ENTIRE uploadFile function with this:
-
-// LOCATION: backend/src/controllers/uploadController.js
-// REPLACE the ENTIRE uploadFile function (line 120) with this:
-
 const uploadFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -205,8 +196,8 @@ const uploadFile = async (req, res) => {
         return res.status(400).json({ error: 'Unsupported file type' });
       }
       
-      // ============ CRITICAL COLUMN DEBUG ============
-      console.log('\n🔍 CRITICAL DEBUG - RAW FILE STRUCTURE:');
+      // Debug column structure
+      console.log('\nðŸ” CRITICAL DEBUG - RAW FILE STRUCTURE:');
       if (parsedData.length > 0) {
         console.log('Column names found:', Object.keys(parsedData[0]));
         console.log('\nFirst 3 rows RAW DATA:');
@@ -220,11 +211,120 @@ const uploadFile = async (req, res) => {
       console.log('================================\n');
 
       // Process data with column mapper
-      const normalizedData = processData(parsedData);
-      // COMPREHENSIVE QUANTITY DEBUG
-      console.log('\n========== RAW DATA QUANTITY CHECK ==========');
+      let normalizedData = processData(parsedData);
+      const originalCount = normalizedData.length;
+
+      // Apply Phase 1 filters if specified
+      const { filterSetId } = req.body;
+      let filterStats = null;
+      let appliedFilter = null;
       
-      // Check what columns exist related to quantity
+      // Replace lines 220-249 in your uploadController.js with this SIMPLE, DIRECT filtering:
+
+      if (filterSetId && filterSetId !== 'no-filter') {
+        const filterSet = await phase1FilterService.getFilterSet(filterSetId);
+        if (filterSet) {
+          console.log(`\nApplying Phase 1 filter: ${filterSet.name}`);
+          // const originalCount = normalizedData.length;
+          
+          // SIMPLE DIRECT FILTERING - NO COMPLEX LOGIC
+          normalizedData = normalizedData.filter(item => {
+            const productId = (item.product_id || '').toUpperCase();
+            const description = (item.description || '').toUpperCase();
+            const type = (item.type || '').toUpperCase();
+            
+            // Check if product ID contains any excluded patterns
+            if (productId !== '-' && productId !== '') {
+              // Direct checks for power supplies, cables, fans, etc.
+              if (productId.includes('PWR')) return false;  // Remove power supplies
+              if (productId.includes('POWER')) return false;  // Remove power supplies
+              if (productId.includes('FAN')) return false;  // Remove fans
+              if (productId.includes('CAB-')) return false;  // Remove cables
+              if (productId.includes('CABLE')) return false;  // Remove cables
+              if (productId.includes('MEM-')) return false;  // Remove memory
+              if (productId.includes('BRACKET')) return false;  // Remove brackets
+              if (productId.includes('SCREW')) return false;  // Remove screws
+              if (productId.includes('RAIL')) return false;  // Remove rails
+              if (productId.includes('NUT')) return false;  // Remove nuts/bolts
+            }
+            
+            // Check descriptions
+            if (description !== '-' && description !== '') {
+              if (description.includes('POWER SUPPLY')) return false;
+              if (description.includes('POWER CORD')) return false;
+              if (description.includes('FAN MODULE')) return false;
+              if (description.includes('FAN TRAY')) return false;
+              if (description.includes('CABLE')) return false;
+              if (description.includes('BRACKET')) return false;
+              if (description.includes('MEMORY')) return false;
+              if (description.includes('RAM')) return false;
+              if (description.includes('MOUNTING')) return false;
+              if (description.includes('ACCESSORY KIT')) return false;
+              if (description.includes('RAIL KIT')) return false;
+            }
+            
+            // Check product types
+            const excludedTypes = ['SERVICE', 'SOFTWARE', 'LICENSE', 'ACCESSORY', 'CABLE', 'MEMORY', 'POWER SUPPLY', 'FAN', 'DOCUMENTATION'];
+            if (excludedTypes.includes(type)) return false;
+            
+            // Keep this item (it didn't match any exclusion)
+            return true;
+          });
+          
+          // Re-index after filtering
+          normalizedData = normalizedData.map((item, index) => ({
+            ...item,
+            id: index + 1
+          }));
+          
+          const excludedCount = originalCount - normalizedData.length;
+          
+          // Show what was excluded
+          console.log(`Filter applied: ${originalCount} items -> ${normalizedData.length} items (${excludedCount} excluded)`);
+          
+          // Log first few remaining product IDs to verify
+          console.log('First 10 items AFTER filtering:');
+          normalizedData.slice(0, 10).forEach(item => {
+            console.log(`  ${item.product_id} - Type: ${item.type}`);
+          });
+          
+          // Check if any PWR/CAB/FAN items remain
+          const problemItems = normalizedData.filter(item => {
+            const pid = (item.product_id || '').toUpperCase();
+            return pid.includes('PWR') || pid.includes('CAB-') || pid.includes('FAN');
+          });
+          
+          if (problemItems.length > 0) {
+            console.log(`WARNING: ${problemItems.length} PWR/CAB/FAN items still present!`);
+            problemItems.forEach(item => {
+              console.log(`  - ${item.product_id}`);
+            });
+          } else {
+            console.log('SUCCESS: No PWR/CAB/FAN items remain');
+          }
+          
+          appliedFilter = {
+            id: filterSet.id,
+            name: filterSet.name,
+            description: filterSet.description
+          };
+          
+          filterStats = {
+            originalCount,
+            filteredCount: normalizedData.length,
+            excludedCount,
+            excludedPercentage: ((excludedCount / originalCount) * 100).toFixed(1),
+            excluded: {
+              byProductId: 0,
+              byDescription: 0,
+              byType: 0
+            }
+          };
+        }
+      }
+      
+      // Debug quantity processing
+      console.log('\n========== RAW DATA QUANTITY CHECK ==========');
       if (parsedData.length > 0) {
         const firstRow = parsedData[0];
         const qtyRelatedColumns = Object.keys(firstRow).filter(key => 
@@ -233,56 +333,25 @@ const uploadFile = async (req, res) => {
           key.toLowerCase().includes('item')
         );
         console.log('Quantity-related columns found:', qtyRelatedColumns);
-        
-        // Show actual values for first 3 rows
-        console.log('\nFirst 3 rows - Item Quantity values:');
-        parsedData.slice(0, 3).forEach((row, idx) => {
-          console.log(`Row ${idx + 1}:`);
-          console.log(`  "Item Quantity": ${row['Item Quantity']}`);
-          console.log(`  Type of value: ${typeof row['Item Quantity']}`);
-          console.log(`  Parsed as int: ${parseInt(row['Item Quantity'])}`);
-        });
       }
       
-      // Check normalized data
-      console.log('\nNormalized data - first 3 items:');
-      normalizedData.slice(0, 3).forEach((item, idx) => {
-        console.log(`Item ${idx + 1}: qty = ${item.qty}`);
-      });
-      
-      // Count non-zero quantities
       const nonZero = normalizedData.filter(item => item.qty > 0).length;
-      console.log(`\nItems with qty > 0: ${nonZero} out of ${normalizedData.length}`);
+      console.log(`Items with qty > 0: ${nonZero} out of ${normalizedData.length}`);
       console.log('==============================================\n');
 
-      // Debug logging to check support coverage mapping
-      console.log('First 5 rows of parsed data columns:', parsedData.slice(0, 5).map(row => Object.keys(row)));
-      console.log('First 5 rows Coverage values:', parsedData.slice(0, 5).map(row => ({
-        Coverage: row.Coverage,
-        coverage: row.coverage,
-        'Covered line status': row['Covered line status'],
-        'Support Coverage': row['Support Coverage']
-      })));
-
-      // Debug normalized support values
-      const supportValues = normalizedData.map(item => item.support_coverage);
-      const supportCounts = supportValues.reduce((acc, val) => {
-        acc[val] = (acc[val] || 0) + 1;
+      // Debug support coverage mapping
+      console.log('Support coverage distribution:', normalizedData.reduce((acc, item) => {
+        acc[item.support_coverage] = (acc[item.support_coverage] || 0) + 1;
         return acc;
-      }, {});
-      console.log('Support coverage distribution:', supportCounts);
-      console.log('Sample normalized items (first 3):', normalizedData.slice(0, 3).map(item => ({
-        product_id: item.product_id,
-        support_coverage: item.support_coverage
-      })));
-      console.log('Normalized rows:', normalizedData.length);
-      
-      // Calculate REFINED analytics (removed value, added service contracts and categories)
+      }, {}));
+
+      // Calculate analytics
       const totalRecords = normalizedData.length;
       const totalQuantity = normalizedData.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
       const activeSupport = normalizedData.filter(item => item.support_coverage === 'Active').length;
       const expiredSupport = normalizedData.filter(item => item.support_coverage === 'Expired').length;
-      // NEW: Calculate End of Sale, SW Vulnerability, and Last Day Support counts
+      
+      // Calculate End of Sale, SW Vulnerability, and Last Day Support counts
       const currentDate = new Date();
       const totalEndOfSale = normalizedData.filter(item => {
         if (!item.end_of_sale || item.end_of_sale === '-') return false;
@@ -317,7 +386,7 @@ const uploadFile = async (req, res) => {
         }
       }).length;
       
-      // NEW: Manufacturer Breakdown
+      // Manufacturer Breakdown
       const manufacturerBreakdown = {};
       normalizedData.forEach(item => {
         const mfg = item.mfg && item.mfg !== '-' ? item.mfg : 'Unknown';
@@ -338,29 +407,15 @@ const uploadFile = async (req, res) => {
           manufacturerBreakdown[mfg].expiredCount++;
         }
       });
-      // NEW: Total unique categories
-      const uniqueCategories = [...new Set(normalizedData.map(item => item.category || 'Uncategorized'))];
-      const totalCategories = uniqueCategories.length;
       
-      // NEW: Total Service Contracts (items with Active support)
-     // NEW: Total Service Contracts (items with Active support)
-      const totalServiceContracts = activeSupport;
-      
-      // Log the calculation for verification
-      console.log(`CALCULATION CHECK: Active Support = ${activeSupport}, Total Items = ${totalRecords}`);
-      console.log(`Percentage with support: ${totalRecords > 0 ? Math.round((activeSupport / totalRecords) * 100) : 0}%`);
-      
-      // Total unique manufacturers
-      const totalManufacturers = [...new Set(normalizedData.map(item => item.mfg).filter(m => m && m !== '-'))].length;
-      
-      // REFINED: Category Breakdown - focus on quantity only
+      // Category Breakdown
       const categoryBreakdown = {};
       normalizedData.forEach(item => {
         const cat = item.category || 'Uncategorized';
         if (!categoryBreakdown[cat]) {
           categoryBreakdown[cat] = { 
-            count: 0,  // Number of unique items
-            quantity: 0, // Total quantity
+            count: 0,
+            quantity: 0,
             activeCount: 0,
             expiredCount: 0
           };
@@ -374,15 +429,8 @@ const uploadFile = async (req, res) => {
           categoryBreakdown[cat].expiredCount++;
         }
       });
-
-      // DEBUG category breakdown quantities
-      console.log('\n=== CATEGORY BREAKDOWN DEBUG ===');
-      Object.entries(categoryBreakdown).forEach(([cat, data]) => {
-        console.log(`${cat}: quantity=${data.quantity}, count=${data.count}`);
-      });
-      console.log('================================\n');
       
-      // REFINED: Data Completeness - removed qty and total_value
+      // Data Completeness
       const requiredFields = [
         'mfg', 
         'category', 
@@ -407,7 +455,6 @@ const uploadFile = async (req, res) => {
       });
       
       // Lifecycle Status by Category
-// Lifecycle Status by Category - UPDATED
       const lifecycleByCategory = {};
       Object.keys(categoryBreakdown).forEach(category => {
         const categoryItems = normalizedData.filter(item => 
@@ -422,7 +469,6 @@ const uploadFile = async (req, res) => {
         categoryItems.forEach(item => {
           totalQty += parseInt(item.qty) || 0;
           
-          // Check End of Sale
           if (item.end_of_sale && item.end_of_sale !== '-') {
             try {
               const eosDate = new Date(item.end_of_sale);
@@ -432,7 +478,6 @@ const uploadFile = async (req, res) => {
             } catch (e) {}
           }
           
-          // Check End of SW Vulnerability Support
           const vulnField = item['End of Vulnerability/Security Support'] || 
                            item.end_of_vulnerability_support || 
                            item['End of Security Support'] || '-';
@@ -445,7 +490,6 @@ const uploadFile = async (req, res) => {
             } catch (e) {}
           }
           
-          // Check Last Day of Support
           if (item.last_day_support && item.last_day_support !== '-') {
             try {
               const ldosDate = new Date(item.last_day_support);
@@ -465,28 +509,136 @@ const uploadFile = async (req, res) => {
         };
       });
       
-      // Create refined summary
+      // Create summary
+      const uniqueCategories = [...new Set(normalizedData.map(item => item.category || 'Uncategorized'))];
+      const totalCategories = uniqueCategories.length;
+      const totalServiceContracts = activeSupport;
+      const totalManufacturers = [...new Set(normalizedData.map(item => item.mfg).filter(m => m && m !== '-'))].length;
+            // Add this BEFORE the exclusions are loaded
+      const originalItemCount = normalizedData.length;
       const summary = {
-        // Keep original fields for compatibility
         total_items: totalRecords,
+        original_items: originalItemCount,  // <-- Add this
+        filtered_items: totalRecords,       // <-- Add this (totalRecords is after filtering)
+        items_excluded: originalItemCount - totalRecords,  // <-- Add this
         total_quantity: totalQuantity,
-        total_value: 0, // Keep for compatibility but set to 0
+        total_value: 0,
         total_manufacturers: totalManufacturers,
         active_support: activeSupport,
         expired_support: expiredSupport,
-        // Add new fields
         total_categories: totalCategories,
         total_service_contracts: totalServiceContracts,
+        total_end_of_sale: totalEndOfSale,
+        total_end_of_sw_vuln: totalEndOfSWVuln,
+        total_last_day_support: totalLastDaySupport,
         totalRecords,
         supportCoverage: totalRecords > 0 ? Math.round((activeSupport / totalRecords) * 100) : 0,
         categoryBreakdown,
         manufacturerBreakdown,
         fieldCompleteness,
-        lifecycleByCategory
+        lifecycleByCategory,
+        // Add filter information
+        appliedFilter,
+        filterStats
       };
       
-      // Store job data in memory with analytics
-      jobStorage[jobId] = {
+      // Right before storing job data
+      console.log('STORING DATA - First 5 items:');
+      normalizedData.slice(0, 5).forEach(item => {
+        console.log(`  ${item.product_id}`);
+      });
+
+
+
+      // LOAD EXCLUSIONS FROM FILE
+      let exclusions = {
+        productIdPatterns: [],
+        descriptionKeywords: [],
+        productTypes: []
+      };
+      
+      try {
+        const exclusionsPath = path.join(__dirname, '../../data/exclusions.json');
+        const exclusionsData = fs.readFileSync(exclusionsPath, 'utf8');
+        const loadedExclusions = JSON.parse(exclusionsData);
+        exclusions = loadedExclusions.exclusions || exclusions;
+        console.log('Loaded exclusions from file');
+        console.log(`  - ${exclusions.productIdPatterns.length} product ID patterns`);
+        console.log(`  - ${exclusions.descriptionKeywords.length} description keywords`);
+        console.log(`  - ${exclusions.productTypes.length} product types`);
+      } catch (error) {
+        console.log('No exclusions file found, using defaults');
+        // Fallback to basic exclusions if file doesn't exist
+        exclusions = {
+          productIdPatterns: ['PWR', 'CAB', 'FAN', 'CON-', 'LIC-'],
+          descriptionKeywords: ['POWER SUPPLY', 'CABLE', 'LICENSE', 'SERVICE'],
+          productTypes: ['SERVICE', 'SOFTWARE', 'LICENSE']
+        };
+      }
+      
+      normalizedData = normalizedData.filter(item => {
+        const pid = (item.product_id || '').toUpperCase();
+        const desc = (item.description || '').toUpperCase();
+        const type = (item.type || '').toUpperCase();
+        
+        // Skip empty values
+        if (pid === '-' || pid === '') {
+          // Don't check product ID patterns for empty values
+        } else {
+          // Check product ID against all patterns
+          for (const pattern of exclusions.productIdPatterns) {
+            if (pid.includes(pattern.toUpperCase())) {
+              console.log(`  Excluding by Product ID: ${item.product_id} (matched pattern: ${pattern})`);
+              return false;
+            }
+          }
+        }
+        
+        // Check description against all keywords
+        if (desc !== '-' && desc !== '') {
+          for (const keyword of exclusions.descriptionKeywords) {
+            if (desc.includes(keyword.toUpperCase())) {
+              console.log(`  Excluding by Description: ${item.product_id} (matched keyword: ${keyword})`);
+              return false;
+            }
+          }
+        }
+        
+        // Check type against excluded types
+        for (const excludedType of exclusions.productTypes) {
+          if (type === excludedType.toUpperCase()) {
+            console.log(`  Excluding by Type: ${item.product_id} (type: ${item.type})`);
+            return false;
+          }
+        }
+        
+        return true; // Keep this item
+      });
+      
+      // Re-index after filtering
+      normalizedData = normalizedData.map((item, index) => ({
+        ...item,
+        id: index + 1
+      }));
+      
+      const excludedByFile = originalItemCount - normalizedData.length;
+      console.log(`\nExclusions applied: ${originalItemCount} → ${normalizedData.length} items`);
+      console.log(`Removed ${excludedByFile} items based on exclusions file\n`);
+      console.log(`FINAL COUNT BEFORE STORAGE: ${normalizedData.length} items`);
+
+      // Update summary with actual filtered counts
+      summary.filtered_items = normalizedData.length;
+      summary.items_excluded = originalItemCount - normalizedData.length;
+
+      // Also update total_items to reflect filtered count
+      summary.total_items = normalizedData.length;
+
+      // Update other counts that depend on filtered data
+      summary.active_support = normalizedData.filter(item => item.support_coverage === 'Active').length;
+      summary.expired_support = normalizedData.filter(item => item.support_coverage === 'Expired').length;
+
+      // Store job data using shared jobStorage
+      const jobData = {
         jobId,
         customerName: customerName || 'Unknown',
         filename: req.file.originalname,
@@ -495,7 +647,7 @@ const uploadFile = async (req, res) => {
         summary,
         analytics: {
           categories: categoryBreakdown,
-          manufacturerBreakdown,  // Make sure this is included
+          manufacturerBreakdown,
           completeness: fieldCompleteness,
           lifecycle: lifecycleByCategory,
           totalCategories,
@@ -508,8 +660,10 @@ const uploadFile = async (req, res) => {
         rows_processed: normalizedData.length
       };
       
+      jobStorage.set(jobId, jobData);
+      
       console.log('Job stored with ID:', jobId);
-      console.log('Refined summary:', summary);
+      console.log('Summary:', summary);
       
       res.json({
         job_id: jobId,
@@ -536,7 +690,7 @@ const uploadFile = async (req, res) => {
 // Status handler
 const getJobStatus = async (req, res) => {
   const { jobId } = req.params;
-  const job = jobStorage[jobId];
+  const job = jobStorage.get(jobId);
   
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
@@ -559,23 +713,22 @@ const getJobStatus = async (req, res) => {
   });
 };
 
-// Results handler - return actual processed data
+// Results handler
 const getResults = async (req, res) => {
   const { jobId } = req.params;
-  const job = jobStorage[jobId];
+  const job = jobStorage.get(jobId);
   
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
   }
   
-  // Support pagination if needed in future
   const limit = parseInt(req.query.limit) || job.data.length;
   const offset = parseInt(req.query.offset) || 0;
   
-  // Return the processed data
   res.json({
     products: job.data.slice(offset, offset + limit),
     summary: job.summary,
+    analytics: job.analytics,
     pagination: {
       total: job.data.length,
       limit: limit,
@@ -587,7 +740,7 @@ const getResults = async (req, res) => {
 // Export handler
 const exportResults = async (req, res) => {
   const { jobId } = req.params;
-  const job = jobStorage[jobId];
+  const job = jobStorage.get(jobId);
   
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
@@ -654,24 +807,152 @@ const exportResults = async (req, res) => {
   }
 };
 
-// Clear old jobs from memory (cleanup function)
-const cleanupOldJobs = () => {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  Object.keys(jobStorage).forEach(jobId => {
-    if (jobStorage[jobId].timestamp < oneHourAgo) {
-      delete jobStorage[jobId];
-      console.log(`Cleaned up old job: ${jobId}`);
-    }
-  });
+// Filter management handlers
+const getFilterSets = async (req, res) => {
+  try {
+    const filterSets = await phase1FilterService.getAllFilterSets();
+    const activeFilter = await phase1FilterService.getActiveFilter();
+    
+    res.json({
+      filterSets,
+      activeFilterId: activeFilter?.id || null
+    });
+  } catch (error) {
+    console.error('Error getting filter sets:', error);
+    res.status(500).json({ error: 'Failed to get filter sets' });
+  }
 };
 
-// Run cleanup every 30 minutes
-setInterval(cleanupOldJobs, 30 * 60 * 1000);
+const getFilterSet = async (req, res) => {
+  try {
+    const { filterId } = req.params;
+    const filterSet = await phase1FilterService.getFilterSet(filterId);
+    
+    if (!filterSet) {
+      return res.status(404).json({ error: 'Filter set not found' });
+    }
+    
+    res.json(filterSet);
+  } catch (error) {
+    console.error('Error getting filter set:', error);
+    res.status(500).json({ error: 'Failed to get filter set' });
+  }
+};
+
+const createFilterSet = async (req, res) => {
+  try {
+    const filterData = req.body;
+    
+    if (!filterData.name) {
+      return res.status(400).json({ error: 'Filter name is required' });
+    }
+    
+    const result = await phase1FilterService.createFilterSet(filterData);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Error creating filter set:', error);
+    res.status(500).json({ error: 'Failed to create filter set' });
+  }
+};
+
+const updateFilterSet = async (req, res) => {
+  try {
+    const { filterId } = req.params;
+    const updates = req.body;
+    
+    const result = await phase1FilterService.updateFilterSet(filterId, updates);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Error updating filter set:', error);
+    res.status(500).json({ error: 'Failed to update filter set' });
+  }
+};
+
+const deleteFilterSet = async (req, res) => {
+  try {
+    const { filterId } = req.params;
+    
+    const result = await phase1FilterService.deleteFilterSet(filterId);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Error deleting filter set:', error);
+    res.status(500).json({ error: 'Failed to delete filter set' });
+  }
+};
+
+const setActiveFilter = async (req, res) => {
+  try {
+    const { filterId } = req.body;
+    
+    const result = await phase1FilterService.setActiveFilter(filterId);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Error setting active filter:', error);
+    res.status(500).json({ error: 'Failed to set active filter' });
+  }
+};
+
+const previewFilter = async (req, res) => {
+  try {
+    const { filterId, sampleData } = req.body;
+    
+    if (!filterId || !sampleData) {
+      return res.status(400).json({ error: 'Filter ID and sample data are required' });
+    }
+    
+    const filterSet = await phase1FilterService.getFilterSet(filterId);
+    
+    if (!filterSet) {
+      return res.status(404).json({ error: 'Filter set not found' });
+    }
+    
+    // Apply filter to sample data
+    const filtered = phase1FilterService.applyFilters(sampleData, filterSet);
+    const stats = await phase1FilterService.getFilterStats(filterId, sampleData);
+    
+    res.json({
+      filtered,
+      stats
+    });
+  } catch (error) {
+    console.error('Error previewing filter:', error);
+    res.status(500).json({ error: 'Failed to preview filter' });
+  }
+};
 
 module.exports = {
   upload: upload.single('file'),
   uploadFile,
   getJobStatus,
   getResults,
-  exportResults
+  exportResults,
+  // Filter management
+  getFilterSets,
+  getFilterSet,
+  createFilterSet,
+  updateFilterSet,
+  deleteFilterSet,
+  setActiveFilter,
+  previewFilter,
+  jobStorage  // Export for shared access
 };

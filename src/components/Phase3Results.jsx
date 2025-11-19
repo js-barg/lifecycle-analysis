@@ -1,5 +1,4 @@
 // src/components/Phase3Results.jsx
-// fixed by cursor
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
@@ -200,77 +199,30 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
     return () => clearInterval(interval);
   }, [researchStatus, phase3JobId]); 
 
-  // Cache Toggle Component - Always visible, never tree-shaken
-  // CRITICAL: This component MUST always render - it's used in production
-  // Export to window to prevent tree-shaking in production builds
-  const CacheToggle = React.memo(() => {
-    // Force component to always return something visible
-    // Using window object to prevent tree-shaking
-    if (typeof window !== 'undefined') {
-      window._cacheToggleRendered = true;
-      window._cacheToggleComponent = CacheToggle;
-    }
-    
-    return (
-      <div 
-        className="flex items-center space-x-2 p-2 bg-white rounded border-2 border-purple-400 shadow-lg"
-        style={{ 
-          display: 'flex !important', 
-          alignItems: 'center',
-          flexShrink: 0,
-          visibility: 'visible !important',
-          opacity: '1 !important',
-          zIndex: 9999,
-          minWidth: '250px',
-          backgroundColor: '#ffffff',
-          position: 'relative',
-          margin: '0 8px'
-        }}
-        data-testid="cache-toggle-container"
-        data-always-visible="true"
-      >
-        <input
-          type="checkbox"
-          id="use-cached-research-checkbox"
-          checked={useCacheEnabled}
-          onChange={(e) => {
-            const newValue = e.target.checked;
-            if (typeof window !== 'undefined') {
-              window._cacheToggleValue = newValue;
-            }
-            setUseCacheEnabled(newValue);
-          }}
-          disabled={researchStatus === 'researching'}
-          style={{ 
-            width: '18px', 
-            height: '18px', 
-            marginRight: '6px',
-            cursor: researchStatus === 'researching' ? 'not-allowed' : 'pointer',
-            flexShrink: 0,
-            display: 'block'
-          }}
-          aria-label="Use cached research results"
-        />
-        <label 
-          htmlFor="use-cached-research-checkbox"
-          className="text-sm font-medium text-gray-700 cursor-pointer"
-          style={{ 
-            cursor: researchStatus === 'researching' ? 'not-allowed' : 'pointer',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
-            display: 'inline-block'
-          }}
-        >
-          Use Cached Research
-        </label>
-      </div>
-    );
-  });
-  
-  // CRITICAL: Export to global scope to prevent tree-shaking
-  if (typeof window !== 'undefined') {
-    window.CacheToggleComponent = CacheToggle;
-  }
+  const CacheToggle = () => (
+  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+    <label className="flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={useCacheEnabled}
+        onChange={(e) => setUseCacheEnabled(e.target.checked)}
+        className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+        disabled={researchStatus === 'running'}
+      />
+      <span className="text-sm font-medium text-gray-700">
+        Use Cached Research
+      </span>
+    </label>
+    <div className="flex items-center text-xs text-gray-500">
+      <Info className="h-3 w-3 mr-1" />
+      <span>
+        {useCacheEnabled 
+          ? "Will use previously cached AI research results when available"
+          : "Will perform fresh AI research for all products (slower)"}
+      </span>
+    </div>
+  </div>
+);
 
   // ============= DATA FETCHING FUNCTIONS =============
   const fetchResults = async () => {
@@ -1347,8 +1299,8 @@ const CacheStatsDisplay = () => {
 
       {/* AI Research Control Panel */}
       <div className="p-6 border-b bg-gray-50">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center space-x-4 flex-wrap">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
             {researchStatus === 'idle' && (
             <button
               onClick={runAIResearch}
@@ -1363,15 +1315,24 @@ const CacheStatsDisplay = () => {
             </button>
           )}
 
-          {/* Cache Toggle - CRITICAL: Must always render - no wrapper, direct render */}
-          <CacheToggle key="cache-toggle-critical" />
-          
-          {/* Debug: Show status for troubleshooting */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="text-xs text-gray-500" style={{ marginLeft: '8px' }}>
-              Status: {researchStatus}
-            </div>
-          )}
+          {/* FORCE CACHE TOGGLE VISIBLE */}
+         <div style= {{
+          //  display: 'inline-block',
+          //  padding: '12px',
+          //  backgroundColor: 'yellow',
+          //  border: '2px solid red',
+          // marginLeft: '10px',
+          //  fontSize: '16px',
+          // fontWeight: 'bold'
+         }}>
+            <input 
+              type="checkbox" 
+              defaultChecked 
+              id="cache-toggle-forced"
+              style={{marginRight: '8px', width: '20px', height: '20px'}}
+            />
+            <label htmlFor="cache-toggle-forced">USE CACHED RESEARCH</label>
+          </div>
 
             {researchStatus === 'completed' && (
               <div className="flex items-center space-x-3 text-green-600">
