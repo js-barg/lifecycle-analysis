@@ -202,11 +202,13 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
 
   // Cache Toggle Component - Always visible, never tree-shaken
   // CRITICAL: This component MUST always render - it's used in production
-  const CacheToggle = () => {
+  // Export to window to prevent tree-shaking in production builds
+  const CacheToggle = React.memo(() => {
     // Force component to always return something visible
     // Using window object to prevent tree-shaking
     if (typeof window !== 'undefined') {
       window._cacheToggleRendered = true;
+      window._cacheToggleComponent = CacheToggle;
     }
     
     return (
@@ -221,17 +223,22 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
           zIndex: 9999,
           minWidth: '250px',
           backgroundColor: '#ffffff',
-          position: 'relative'
+          position: 'relative',
+          margin: '0 8px'
         }}
         data-testid="cache-toggle-container"
+        data-always-visible="true"
       >
         <input
           type="checkbox"
           id="use-cached-research-checkbox"
           checked={useCacheEnabled}
           onChange={(e) => {
-            console.log('Cache toggle changed:', e.target.checked);
-            setUseCacheEnabled(e.target.checked);
+            const newValue = e.target.checked;
+            if (typeof window !== 'undefined') {
+              window._cacheToggleValue = newValue;
+            }
+            setUseCacheEnabled(newValue);
           }}
           disabled={researchStatus === 'researching'}
           style={{ 
@@ -239,7 +246,8 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
             height: '18px', 
             marginRight: '6px',
             cursor: researchStatus === 'researching' ? 'not-allowed' : 'pointer',
-            flexShrink: 0
+            flexShrink: 0,
+            display: 'block'
           }}
           aria-label="Use cached research results"
         />
@@ -249,14 +257,20 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
           style={{ 
             cursor: researchStatus === 'researching' ? 'not-allowed' : 'pointer',
             userSelect: 'none',
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            display: 'inline-block'
           }}
         >
           Use Cached Research
         </label>
       </div>
     );
-  };
+  });
+  
+  // CRITICAL: Export to global scope to prevent tree-shaking
+  if (typeof window !== 'undefined') {
+    window.CacheToggleComponent = CacheToggle;
+  }
 
   // ============= DATA FETCHING FUNCTIONS =============
   const fetchResults = async () => {
