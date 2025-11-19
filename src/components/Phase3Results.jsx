@@ -202,18 +202,24 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
 
   // Cache Toggle Component - Always visible, never tree-shaken
   const CacheToggle = () => {
+    // DEBUG: Log when component renders
+    console.log('🔵 CacheToggle component rendering, useCacheEnabled:', useCacheEnabled);
+    
     return (
       <div 
-        className="flex items-center space-x-2 p-2 bg-white rounded border border-gray-300 shadow-sm"
+        className="flex items-center space-x-2 p-2 bg-white rounded border-2 border-purple-400 shadow-lg"
         style={{ 
-          display: 'flex', 
+          display: 'flex !important', 
           alignItems: 'center',
           flexShrink: 0,
-          visibility: 'visible',
-          opacity: 1,
-          zIndex: 1,
-          minWidth: '200px'
+          visibility: 'visible !important',
+          opacity: '1 !important',
+          zIndex: 9999,
+          minWidth: '250px',
+          backgroundColor: '#ffffff',
+          position: 'relative'
         }}
+        data-testid="cache-toggle-container"
       >
         <input
           type="checkbox"
@@ -1340,7 +1346,10 @@ const CacheStatsDisplay = () => {
           )}
 
           {/* Cache Toggle - Always render to prevent build-time removal */}
-          <CacheToggle key="cache-toggle" />
+          {/* DEBUG: Force render with explicit visibility */}
+          <div style={{ display: 'block', visibility: 'visible', opacity: 1 }}>
+            <CacheToggle key="cache-toggle" />
+          </div>
           
           {/* Debug: Show status for troubleshooting */}
           {process.env.NODE_ENV === 'development' && (
