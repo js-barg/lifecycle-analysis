@@ -204,6 +204,13 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
   const CacheToggle = () => {
     // DEBUG: Log when component renders
     console.log('🔵 CacheToggle component rendering, useCacheEnabled:', useCacheEnabled);
+    console.log('🔵 CacheToggle researchStatus:', researchStatus);
+    console.log('🔵 CacheToggle phase3JobId:', phase3JobId);
+    
+    // Force component to always return something visible
+    if (!useCacheEnabled && useCacheEnabled !== false) {
+      console.warn('⚠️ useCacheEnabled is undefined!');
+    }
     
     return (
       <div 
@@ -1347,9 +1354,23 @@ const CacheStatsDisplay = () => {
 
           {/* Cache Toggle - Always render to prevent build-time removal */}
           {/* DEBUG: Force render with explicit visibility */}
-          <div style={{ display: 'block', visibility: 'visible', opacity: 1 }}>
-            <CacheToggle key="cache-toggle" />
-          </div>
+          {(() => {
+            console.log('🔴 About to render CacheToggle, researchStatus:', researchStatus);
+            return (
+              <div 
+                style={{ 
+                  display: 'block !important', 
+                  visibility: 'visible !important', 
+                  opacity: '1 !important',
+                  position: 'relative',
+                  zIndex: 9999
+                }}
+                data-debug="cache-toggle-wrapper"
+              >
+                <CacheToggle key="cache-toggle" />
+              </div>
+            );
+          })()}
           
           {/* Debug: Show status for troubleshooting */}
           {process.env.NODE_ENV === 'development' && (
