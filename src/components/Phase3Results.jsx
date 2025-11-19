@@ -201,15 +201,12 @@ const Phase3Results = ({ phase2JobId, isActive, customerName, onComplete, onRese
   }, [researchStatus, phase3JobId]); 
 
   // Cache Toggle Component - Always visible, never tree-shaken
+  // CRITICAL: This component MUST always render - it's used in production
   const CacheToggle = () => {
-    // DEBUG: Log when component renders
-    console.log('🔵 CacheToggle component rendering, useCacheEnabled:', useCacheEnabled);
-    console.log('🔵 CacheToggle researchStatus:', researchStatus);
-    console.log('🔵 CacheToggle phase3JobId:', phase3JobId);
-    
     // Force component to always return something visible
-    if (!useCacheEnabled && useCacheEnabled !== false) {
-      console.warn('⚠️ useCacheEnabled is undefined!');
+    // Using window object to prevent tree-shaking
+    if (typeof window !== 'undefined') {
+      window._cacheToggleRendered = true;
     }
     
     return (
@@ -1352,25 +1349,8 @@ const CacheStatsDisplay = () => {
             </button>
           )}
 
-          {/* Cache Toggle - Always render to prevent build-time removal */}
-          {/* DEBUG: Force render with explicit visibility */}
-          {(() => {
-            console.log('🔴 About to render CacheToggle, researchStatus:', researchStatus);
-            return (
-              <div 
-                style={{ 
-                  display: 'block !important', 
-                  visibility: 'visible !important', 
-                  opacity: '1 !important',
-                  position: 'relative',
-                  zIndex: 9999
-                }}
-                data-debug="cache-toggle-wrapper"
-              >
-                <CacheToggle key="cache-toggle" />
-              </div>
-            );
-          })()}
+          {/* Cache Toggle - CRITICAL: Must always render - no wrapper, direct render */}
+          <CacheToggle key="cache-toggle-critical" />
           
           {/* Debug: Show status for troubleshooting */}
           {process.env.NODE_ENV === 'development' && (
