@@ -1301,6 +1301,45 @@ const CacheStatsDisplay = () => {
       <div className="p-6 border-b bg-gray-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
+            {/* Cache Toggle - Always Visible, Inline Implementation */}
+            <div className="flex items-center space-x-2 px-4 py-2 bg-white rounded-lg border border-gray-300">
+              <input
+                type="checkbox"
+                id="use-cached-research-checkbox"
+                checked={useCacheEnabled}
+                onChange={(e) => setUseCacheEnabled(e.target.checked)}
+                disabled={researchStatus === 'researching'}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  cursor: researchStatus === 'researching' ? 'not-allowed' : 'pointer',
+                  marginRight: '8px'
+                }}
+              />
+              <label
+                htmlFor="use-cached-research-checkbox"
+                style={{
+                  cursor: researchStatus === 'researching' ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: researchStatus === 'researching' ? '#9CA3AF' : '#374151',
+                  userSelect: 'none'
+                }}
+              >
+                Use Cached Research
+              </label>
+              <Info
+                className="h-4 w-4"
+                style={{
+                  color: researchStatus === 'researching' ? '#9CA3AF' : '#6B7280',
+                  marginLeft: '4px'
+                }}
+                title={useCacheEnabled 
+                  ? "Will use previously cached AI research results when available" 
+                  : "Will perform fresh AI research for all products (slower)"}
+              />
+            </div>
+
             {researchStatus === 'idle' && (
             <button
               onClick={runAIResearch}
@@ -1314,25 +1353,6 @@ const CacheStatsDisplay = () => {
               <span>Start AI Research</span>
             </button>
           )}
-
-          {/* FORCE CACHE TOGGLE VISIBLE */}
-         <div style= {{
-          //  display: 'inline-block',
-          //  padding: '12px',
-          //  backgroundColor: 'yellow',
-          //  border: '2px solid red',
-          // marginLeft: '10px',
-          //  fontSize: '16px',
-          // fontWeight: 'bold'
-         }}>
-            <input 
-              type="checkbox" 
-              defaultChecked 
-              id="cache-toggle-forced"
-              style={{marginRight: '8px', width: '20px', height: '20px'}}
-            />
-            <label htmlFor="cache-toggle-forced">USE CACHED RESEARCH</label>
-          </div>
 
             {researchStatus === 'completed' && (
               <div className="flex items-center space-x-3 text-green-600">
